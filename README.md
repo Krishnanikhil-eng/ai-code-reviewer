@@ -63,3 +63,5 @@ ngrok http 8000
 7. Make sure it's active.
 
 > For a full secure setup, create a GitHub App in your developer settings, generate a private key (`.pem`), note the App ID, and update `.env` accordingly. Set webhooks via the App configuration instead.
+>
+> Testing AI Code Reviewer webhook integration
