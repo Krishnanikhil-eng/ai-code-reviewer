@@ -1,0 +1,59 @@
+# Team-Aware AI Code Reviewer: Project Walkthrough
+
+## Overview
+This system is an open-source, self-hostable AI code reviewer that integrates with GitHub. It analyzes pull requests for bugs, security issues, performance problems, and styling violations by learning a specific team's coding conventions from their historical pull request data.
+
+## Phase 1: Foundation & GitHub Integration
+**Goal:** Establish the communication pipeline between GitHub and our self-hosted system.
+
+1. **Webhook Listener:** Build a backend using **FastAPI (Python)**. It's fast, asynchronous, and perfect for handling incoming GitHub webhooks.
+2. **GitHub App Authentication:** Configure the service as a GitHub App instead of using personal access tokens. This grants granular permissions (read code, write PR comments) and handles rate-limiting cleanly.
+3. **Event Routing:** When a `pull_request` event (opened/synchronized) triggers the webhook, the system enqueues a background job (using a lightweight queue like Celery or FastAPI background tasks) to prevent GitHub webhook timeouts.
+
+## Phase 2: Data Ingestion & Context Parsing
+**Goal:** Retrieve the current PR data and gather historical context.
+
+1. **Diff Extraction:** Use the `PyGithub` library to fetch the PR diff. The diff is parsed to extract only changed lines and surrounding context.
+2. **Historical Context Gathering:**
+   - On initial installation, the tool performs a "scrape" of the last *N* merged PRs and their review comments.
+   - It extracts data pairs mapping: `[Problematic Code -> Developer Comment -> Fixed Code]`.
+
+## Phase 3: The AI & "Team-Specific Learning" Engine
+**Goal:** Generate suggestions based on team patterns using Retrieval-Augmented Generation (RAG).
+
+1. **Vector Database:** Deploy a local AI database such as **ChromaDB** or **Qdrant**.
+2. **Embedding the Past:** Convert historical accepted PR changes and style guidelines into vector embeddings and store them within the vector database.
+3. **The Review Process:**
+   - When a new PR is created, the code is chunked.
+   - For each chunk, search the Vector DB for "similar past code from this repository".
+   - Construct a prompt for the LLM (e.g., Llama 3 or Mistral running locally via Ollama) that provides the new code alongside examples of past team fixes.
+   - *Prompt Example:* "You are reviewing code. Here is the new code. Here are 3 examples of how this team handled similar code in the past. Suggest improvements matching the team's historical style."
+
+## Phase 4: Review Quality Scoring & Feedback Loop
+**Goal:** Improve suggestions over time based on developer reactions.
+
+1. **Database:** Use SQLite or PostgreSQL to track every AI comment, assigning a unique ID to each suggestion.
+2. **Listening for Reactions:** Continuously monitor GitHub `issue_comment` and `pull_request_review_thread` webhooks.
+3. **Scoring Logic:**
+   - **+1 Confidence:** Developer thumbs-ups (👍) the comment or merges the PR with the exact suggested code.
+   - **-1 Confidence:** Developer thumbs-downs (👎) the comment, replies with a correction, or ignores it completely.
+4. **Self-Correction:** If a specific type of suggestion falls below a confidence threshold, flag it in the Vector DB to ignore that "lesson" in future RAG queries.
+
+## Phase 5: Packaging for Self-Hosting
+**Goal:** Enable trivial deployment on company servers for ultimate privacy.
+
+1. **Dockerized Stack:** Provide a `docker-compose.yml` including:
+   - FastAPI backend.
+   - PostgreSQL/SQLite relational database.
+   - ChromaDB/Qdrant vector store.
+   - Ollama container (for 100% local, internet-isolated LLM execution), with the option to plugin external API keys (OpenAI/Anthropic) if preferred.
+
+---
+
+## 🚀 Additional Features Include
+
+*   **Inline "Chat with the AI":** Allow developers to reply directly to the AI's comment on GitHub (e.g., `@ReviewBot can you rewrite this using a map?`), prompting the AI to reply with updated code.
+*   **Blast Radius (Impact) Analysis:** Analyze repository structure to warn about frequent breaking changes across files (e.g., "Historically, changes in `auth_service.py` frequently break `billing_service.py`").
+*   **The "Nitpick" Slider:** configurable strictness via a `.ai-reviewer.yml` file. AI scores its suggestions internally (1-10) and only posts comments exceeding the set threshold (e.g., `strictness_level: critical_only`).
+*   **Automated PR Summaries:** If PR descriptions are vague, the AI automatically generates a technical TL;DR for reviewers and a plain-English summary for non-technical stakeholders.
+*   **Static Analysis Pre-filtering:** Pipe PR diffs through fast tools like `Bandit` (Python security) or `Ruff` (Python linting) before involving the LLM, saving time and compute power.
