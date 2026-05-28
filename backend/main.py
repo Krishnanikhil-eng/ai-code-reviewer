@@ -67,12 +67,17 @@ async def github_webhook(request: Request, background_tasks: BackgroundTasks):
         return {"status": "accepted", "message": "Reaction received."}
 
     elif event_type == "issue_comment":
-        # NEW Phase 4: Handle reactions or replies in comments
+        # Phase 4: Handle comment-based feedback on AI reviews
         payload = await request.json()
-        from backend.services.reaction_handler import handle_reaction_event
-        # Reactions on comments can sometimes trigger issue_comment with 'reaction' key or come as 'reaction' events
+        from backend.services.reaction_handler import handle_reaction_event, handle_comment_feedback
+        
         if "reaction" in payload:
+            # Reactions on comments can sometimes trigger issue_comment events
             background_tasks.add_task(handle_reaction_event, payload)
+        else:
+            # New comment created — check if it's developer feedback on an AI review
+            background_tasks.add_task(handle_comment_feedback, payload)
+        
         return {"status": "accepted", "message": "Comment activity recorded."}
             
     return {"status": "ignored", "message": f"Event '{event_type}' ignored, listening only for target events."}
