@@ -1,0 +1,16 @@
+# Walkthrough: Phase 2 - Data Ingestion and Historical Context Gathering
+
+## Changes Made
+- Created a [DatasetBuilder](file:///d:/gituhub%20ai%20reviewer/backend/services/dataset_builder.py#8-100) module in [backend/services/dataset_builder.py](file:///d:/gituhub%20ai%20reviewer/backend/services/dataset_builder.py) that formats review comments and PR data into structured JSON objects mapping `Problematic Code -> Review Comment -> Fixed Code` (where available/inferable).
+- Added logic to filter out short (under 15 characters) and lower-value common review comments (e.g., "lgtm", "nit", "typo") to improve dataset quality.
+- Implemented [PRHistoryScraper](file:///d:/gituhub%20ai%20reviewer/backend/services/pr_history_scraper.py#8-71) in [backend/services/pr_history_scraper.py](file:///d:/gituhub%20ai%20reviewer/backend/services/pr_history_scraper.py) using PyGithub to connect to public repositories, list closed/merged PRs, and fetch their review comments and diff hunks.
+- Updated [backend/core/config.py](file:///d:/gituhub%20ai%20reviewer/backend/core/config.py) to allow non-strict reading of [.env](file:///d:/gituhub%20ai%20reviewer/.env) files using `extra='ignore'` on the Pydantic BaseSettings class, preventing environment validation errors.
+- Created [test_scraper.py](file:///d:/gituhub%20ai%20reviewer/backend/test_scraper.py) to test the script pipeline against the `tiangolo/fastapi` repository.
+
+## What Was Tested
+- Executed [test_scraper.py](file:///d:/gituhub%20ai%20reviewer/backend/test_scraper.py) successfully and verified that it correctly connects to the GitHub API, retrieves a configurable number of past merged PRs, and processes their review comments.
+- Monitored dataset generation, validating that short or unhelpful review comments were effectively filtered out according to our new rules.
+
+## Validation Results
+- The scraper gathered meaningful, structured examples into [database/training_data.json](file:///d:/gituhub%20ai%20reviewer/database/training_data.json).
+- The dataset file grew from zero to ~129KB natively capturing code chunks and high-quality review instructions, suitable to be embedded in Phase 3.

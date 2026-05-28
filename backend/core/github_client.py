@@ -1,7 +1,7 @@
 import os
 import logging
 from github import Github, Auth
-from core.config import settings
+from backend.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -34,3 +34,24 @@ def get_installation_client(installation_id: int) -> Github:
     except Exception as e:
         logger.error(f"Failed to authenticate GitHub App with installation ID {installation_id}: {e}")
         return Github()
+
+def post_pr_comment(repo_full_name: str, pr_number: int, installation_id: int, comment: str) -> int:
+    """
+    Posts a review comment to the specified Pull Request.
+    Returns the GitHub comment ID if successful, None otherwise.
+    """
+    gh = get_installation_client(installation_id)
+    if not gh:
+        logger.error("Could not obtain GitHub client to post comment.")
+        return None
+        
+    try:
+        repo = gh.get_repo(repo_full_name)
+        pr = repo.get_pull(pr_number)
+        
+        logger.info(f"Posting review comment to {repo_full_name} PR #{pr_number}")
+        created_comment = pr.create_issue_comment(comment)
+        return created_comment.id
+    except Exception as e:
+        logger.error(f"Failed to post comment to {repo_full_name} PR #{pr_number}: {e}")
+        return None

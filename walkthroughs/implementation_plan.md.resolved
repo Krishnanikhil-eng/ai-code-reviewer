@@ -1,0 +1,51 @@
+# Implementation Plan: Phase 2 - Data Ingestion and Historical Context Gathering
+
+This phase extends the Team-Aware AI Code Reviewer to scrape historical pull requests and extract structured training examples mapping problematic code to fixed code based on reviewer comments.
+
+## Goal Description
+Build a module that retrieves merged pull requests from a GitHub repository using the PyGithub client, parses the file changes and review comments, and extracts structured data pairs (Problematic Code -> Reviewer Comment -> Fixed Code). This structured data will be saved to a local JSON dataset destined for the AI vector database in Phase 3.
+
+## Proposed Changes
+
+### Database Layer
+#### [NEW] [database/training_data.json](file:///D:/gituhub%20ai%20reviewer/database/training_data.json)
+- Initial empty JSON array placeholder.
+
+### Service Layer: Data Extraction
+#### [NEW] [backend/services/dataset_builder.py](file:///D:/gituhub%20ai%20reviewer/backend/services/dataset_builder.py)
+- `DatasetBuilder` class responsible for:
+  - Defining the schema for training examples (`pr_number`, `file`, `problematic_code`, `review_comment`, `fixed_code`).
+  - Parsing the diffs and matching reviewer comments to specific lines of code.
+  - Generating and validating the structured records.
+  - Saving the dataset to `database/training_data.json`.
+
+#### [NEW] [backend/services/pr_history_scraper.py](file:///D:/gituhub%20ai%20reviewer/backend/services/pr_history_scraper.py)
+- `PRHistoryScraper` class responsible for:
+  - Using PyGithub to fetch the last *N* merged PRs for a specific repository.
+  - Iterating through each PR to fetch the changed files and review comments.
+  - Passing the raw PR data to `DatasetBuilder` to extract and save the training examples.
+
+### Integration
+#### [MODIFY] [backend/services/pr_processor.py](file:///D:/gituhub%20ai%20reviewer/backend/services/pr_processor.py)
+- Modify [process_pull_request](file:///d:/gituhub%20ai%20reviewer/backend/services/pr_processor.py#6-38) to optionally trigger the historical scraping process if the dataset is empty or if it's the first time the app is installed on a repository.
+
+## Design Discussion & Potential Improvements
+
+The user suggested an alternative if a "better idea" exists. Here are thoughts on improving the requested approach:
+
+**The Challenge with Diffs:**
+Matching "Problematic Code" strictly from a unified diff patch and a review comment is notoriously fragile. A reviewer might comment on line 10, but the fix might involve changing lines 8-15 in a subsequent commit. Relying purely on diff parsing often leads to noisy or misaligned training data.
+
+**The "Better Idea": Commit-Level Graph or LLM-Assisted Extraction**
+1.  **Iterative extraction (Simpler):** Instead of manually parsing the text of unified diff patches to align comments with code before and after, we can leverage the GitHub API's `PullRequestReviewComment` object, which inherently contains the exact `diff_hunk` the comment was placed on. We then look at the *final* file state in the [pull_request](file:///d:/gituhub%20ai%20reviewer/backend/services/pr_processor.py#6-38) to get the "Fixed Code".
+2.  **LLM-Assisted Extraction (Advanced but cleaner):** We pull the raw PR comments, the file *before* the PR, and the file *after* the PR. We pass these three pieces of context to a fast, cheap LLM (like GPT-4o-mini or Claude 3 Haiku) locally or via API, and ask the LLM to extract the precise `problematic_code` and `fixed_code` blocks. This handles complex refactors where a single comment led to sprawling changes that a simple regex/diff parser would fail to catch.
+
+For this implementation, I will stick to the user's requested architecture (Python-based diff extraction) using PyGithub's comment `diff_hunk` attributes, as it provides a solid foundation. If we find the data quality lacking later, we can upgrade `dataset_builder.py` to use LLM extraction.
+
+## Verification Plan
+
+### Automated Tests
+*   We will write a dummy script (`backend/test_scraper.py`) that initializes the `PRHistoryScraper` and runs it against a public repository (e.g., a small open-source project) to verify it can fetch merged PRs, extract comments, and write to `database/training_data.json`.
+
+### Manual Verification
+*   Inspect `database/training_data.json` to ensure the schema matches the requirements and the code snippets align correctly with the reviewer comments.

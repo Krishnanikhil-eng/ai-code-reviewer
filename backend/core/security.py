@@ -1,6 +1,6 @@
 import hmac
 import hashlib
-from core.config import settings
+from backend.core.config import settings
 
 def verify_signature(payload_body: bytes, signature_header: str) -> bool:
     """

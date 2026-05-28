@@ -9,8 +9,13 @@ class Settings(BaseSettings):
     # Allows falling back to a dummy setup for local testing if needed
     DEBUG: bool = True
     
+    # AI Engine settings
+    OLLAMA_API_URL: str = "http://localhost:11434/api/generate"
+    OLLAMA_MODEL: str = "llama3"
+    
     class Config:
         env_file = ".env"
         env_file_encoding = 'utf-8'
+        extra = 'ignore'
 
 settings = Settings()

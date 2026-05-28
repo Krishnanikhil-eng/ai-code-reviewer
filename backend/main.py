@@ -1,8 +1,8 @@
 import logging
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
-from core.security import verify_signature
-from services.pr_processor import process_pull_request
-from core.config import settings
+from backend.core.security import verify_signature
+from backend.services.pr_processor import process_pull_request
+from backend.core.config import settings
 
 # 1. Logging setup
 logging.basicConfig(
@@ -33,25 +33,20 @@ async def github_webhook(request: Request, background_tasks: BackgroundTasks):
 
     logger.debug(f"Received GitHub Webhook Event type: {event_type}")
 
-    # B. We only care about Pull Request events
+    # B. Route events
     if event_type == "pull_request":
         payload = await request.json()
         action = payload.get("action")
         repo_name = payload["repository"]["full_name"]
         
-        # Log basic info
         logger.info(f"Received PR event: action={action} repository={repo_name}")
         
-        # We process 'opened' (new PR) and 'synchronize' (new commits added)
         if action in ["opened", "synchronize"]:
             pr_number = payload["number"]
-            # GitHub Apps get installation_id in payload, useful for auth later
             installation_id = payload.get("installation", {}).get("id")
             
             logger.info(f"Triggering background processing for PR #{pr_number}")
             
-            # C. Trigger Background Task
-            # FastAPI's background tasks run immediately after the webhook returns a 200 response
             if installation_id or settings.DEBUG:
                 background_tasks.add_task(
                     process_pull_request, 
@@ -63,6 +58,22 @@ async def github_webhook(request: Request, background_tasks: BackgroundTasks):
                 logger.warning("No installation ID found in payload.")
             
             return {"status": "accepted", "message": f"Processing PR #{pr_number} securely."}
+
+    elif event_type == "reaction":
+        # NEW Phase 4: Handle reactions to comments
+        payload = await request.json()
+        from backend.services.reaction_handler import handle_reaction_event
+        background_tasks.add_task(handle_reaction_event, payload)
+        return {"status": "accepted", "message": "Reaction received."}
+
+    elif event_type == "issue_comment":
+        # NEW Phase 4: Handle reactions or replies in comments
+        payload = await request.json()
+        from backend.services.reaction_handler import handle_reaction_event
+        # Reactions on comments can sometimes trigger issue_comment with 'reaction' key or come as 'reaction' events
+        if "reaction" in payload:
+            background_tasks.add_task(handle_reaction_event, payload)
+        return {"status": "accepted", "message": "Comment activity recorded."}
             
     return {"status": "ignored", "message": f"Event '{event_type}' ignored, listening only for target events."}
 
