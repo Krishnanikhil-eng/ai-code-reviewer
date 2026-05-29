@@ -5,12 +5,13 @@ from typing import Dict, Any, List
 
 logger = logging.getLogger(__name__)
 
+
 class DatasetBuilder:
     def __init__(self, data_file_path: str = "../../database/training_data.json"):
         # Ensure path is relative to the backend/services/ directory
         base_dir = os.path.dirname(os.path.abspath(__file__))
         self.data_file_path = os.path.normpath(os.path.join(base_dir, data_file_path))
-        
+
         # Initialize file if it doesn't exist
         if not os.path.exists(self.data_file_path):
             os.makedirs(os.path.dirname(self.data_file_path), exist_ok=True)
@@ -20,13 +21,13 @@ class DatasetBuilder:
         if not os.path.exists(self.data_file_path):
             return []
         try:
-            with open(self.data_file_path, 'r', encoding='utf-8') as f:
+            with open(self.data_file_path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except json.JSONDecodeError:
             return []
 
     def _save_data(self, data: List[Dict[str, Any]]):
-        with open(self.data_file_path, 'w', encoding='utf-8') as f:
+        with open(self.data_file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
     def _fetch_file_at_commit(self, repo, file_path: str, commit_sha: str) -> str:
@@ -36,17 +37,19 @@ class DatasetBuilder:
         """
         try:
             contents = repo.get_contents(file_path, ref=commit_sha)
-            return contents.decoded_content.decode('utf-8')
+            return contents.decoded_content.decode("utf-8")
         except Exception as e:
-            logger.warning(f"Could not fetch '{file_path}' at commit {commit_sha[:7]}: {e}")
+            logger.warning(
+                f"Could not fetch '{file_path}' at commit {commit_sha[:7]}: {e}"
+            )
             return None
 
     def _extract_fixed_code_window(self, repo, comment) -> str:
         """
         Extracts a focused window of lines around the commented line as the "fixed" code.
         """
-        latest_sha = getattr(comment, 'commit_id', None)
-        file_path = getattr(comment, 'path', None)
+        latest_sha = getattr(comment, "commit_id", None)
+        file_path = getattr(comment, "path", None)
 
         if not latest_sha or not file_path:
             return ""
@@ -57,16 +60,18 @@ class DatasetBuilder:
             if not fixed_content:
                 return ""
 
-            lines = fixed_content.split('\n')
+            lines = fixed_content.split("\n")
 
             # Try to extract a focused window around the commented line
-            target_line = getattr(comment, 'line', None) or getattr(comment, 'original_line', None)
+            target_line = getattr(comment, "line", None) or getattr(
+                comment, "original_line", None
+            )
 
             if target_line and target_line > 0:
                 window = 10  # lines above and below the target
                 start = max(0, target_line - window - 1)
                 end = min(len(lines), target_line + window)
-                return '\n'.join(lines[start:end])
+                return "\n".join(lines[start:end])
 
             # Fallback: return full file if it's small enough
             if len(fixed_content) <= 3000:
@@ -85,12 +90,12 @@ class DatasetBuilder:
         First tries to extract the precise diff patch changes between:
         - original_commit_id: commit before fix
         - commit_id: commit after fix
-        
+
         Falls back to a lines-window if the precise diff comparison is empty or fails.
         """
-        original_sha = getattr(comment, 'original_commit_id', None)
-        latest_sha = getattr(comment, 'commit_id', None)
-        file_path = getattr(comment, 'path', None)
+        original_sha = getattr(comment, "original_commit_id", None)
+        latest_sha = getattr(comment, "commit_id", None)
+        file_path = getattr(comment, "path", None)
 
         if not latest_sha or not file_path:
             return ""
@@ -113,15 +118,21 @@ class DatasetBuilder:
                                 if line.startswith("+") and not line.startswith("+++"):
                                     added_lines.append(line[1:])
                             if added_lines:
-                                logger.info(f"Successfully extracted precise patch-based fix for {file_path}")
+                                logger.info(
+                                    f"Successfully extracted precise patch-based fix for {file_path}"
+                                )
                                 return "\n".join(added_lines)
             except Exception as e:
-                logger.warning(f"Failed to extract precise patch-based fix: {e}. Falling back to window method.")
+                logger.warning(
+                    f"Failed to extract precise patch-based fix: {e}. Falling back to window method."
+                )
 
         # Strategy 2: Fall back to window extraction
         return self._extract_fixed_code_window(repo, comment)
 
-    def extract_from_comment(self, repo_name: str, pr_number: int, comment: Any, repo=None) -> Dict[str, Any]:
+    def extract_from_comment(
+        self, repo_name: str, pr_number: int, comment: Any, repo=None
+    ) -> Dict[str, Any]:
         """
         Extracts the problematic code and fixed code from a GitHub PullRequestReviewComment.
         Uses the diff_hunk as the problematic code context.
@@ -140,41 +151,47 @@ class DatasetBuilder:
             "repo": repo_name,
             "pr_number": pr_number,
             "file": comment.path,
-            "language": comment.path.split('.')[-1] if '.' in comment.path else "unknown",
+            "language": (
+                comment.path.split(".")[-1] if "." in comment.path else "unknown"
+            ),
             "problematic_code": problematic_code,
             "review_comment": comment.body,
             "fixed_code": fixed_code,
             "commit_before": comment.original_commit_id,
-            "commit_after": comment.commit_id
+            "commit_after": comment.commit_id,
         }
         return example
 
-    def build_and_store(self, repo_name: str, pr_number: int, comments: List[Any], repo=None):
+    def build_and_store(
+        self, repo_name: str, pr_number: int, comments: List[Any], repo=None
+    ):
         """
         Builds dataset examples from PR comments and stores them in the JSON file.
         If repo (PyGithub Repository object) is provided, extracts actual fixed code via GitHub API.
         """
         data = self._load_data()
         new_records = 0
-        
+
         LOW_VALUE_COMMENTS = ["nit", "lgtm", "typo", "thanks", "nice"]
-        
+
         for comment in comments:
             review_comment = comment.body.strip()
-            
+
             # We skip short or low-value comments to keep data clean
             if len(review_comment) < 15:
                 continue
-                
+
             comment_text = review_comment.lower()
             if comment_text in LOW_VALUE_COMMENTS:
                 continue
 
             record = self.extract_from_comment(repo_name, pr_number, comment, repo=repo)
-            
+
             # Simple deduplication check based on PR and comment original line
             is_duplicate = any(
-                r.get('pr_number') == record['pr_number'] and r.get('file') == record['file'] and r.get('review_comment') == record['review_comment']
+                r.get("pr_number") == record["pr_number"]
+                and r.get("file") == record["file"]
+                and r.get("review_comment") == record["review_comment"]
                 for r in data
             )
 
@@ -184,4 +201,6 @@ class DatasetBuilder:
 
         if new_records > 0:
             self._save_data(data)
-            logger.info(f"Added {new_records} new examples to training data from PR #{pr_number}")
+            logger.info(
+                f"Added {new_records} new examples to training data from PR #{pr_number}"
+            )

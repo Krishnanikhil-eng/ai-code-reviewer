@@ -12,19 +12,25 @@ from vector_store.chroma_client import query_similar
 # We initialize this lazily so it doesn't slow down imports if not needed
 _embedder_model = None
 
+
 def _get_embedder():
     global _embedder_model
     if _embedder_model is None:
         try:
             from sentence_transformers import SentenceTransformer
+
             print("Loading sentence-transformers model 'all-MiniLM-L6-v2'...")
-            _embedder_model = SentenceTransformer('all-MiniLM-L6-v2')
+            _embedder_model = SentenceTransformer("all-MiniLM-L6-v2")
         except ImportError:
-            raise ImportError("sentence-transformers is not installed. Please install it.")
+            raise ImportError(
+                "sentence-transformers is not installed. Please install it."
+            )
     return _embedder_model
+
 
 OLLAMA_API_URL = settings.OLLAMA_API_URL
 OLLAMA_MODEL = settings.OLLAMA_MODEL
+
 
 def generate_review(code_snippet: str) -> Dict[str, Any]:
     """
@@ -32,10 +38,7 @@ def generate_review(code_snippet: str) -> Dict[str, Any]:
     and uses Ollama to generate a team-specific review comment and suggested fix.
     """
     if not code_snippet or not code_snippet.strip():
-        return {
-            "review_comment": "No code provided to review.",
-            "suggested_fix": ""
-        }
+        return {"review_comment": "No code provided to review.", "suggested_fix": ""}
 
     # 1. Generate embedding for the new snippet
     model = _get_embedder()
@@ -43,11 +46,11 @@ def generate_review(code_snippet: str) -> Dict[str, Any]:
 
     # 2. Query ChromaDB for top 5 similar historical examples
     results = query_similar(embedding, n_results=5)
-    
+
     historical_context = ""
-    if results and results['metadatas'] and len(results['metadatas']) > 0:
-        metadatas = results['metadatas'][0]
-        
+    if results and results["metadatas"] and len(results["metadatas"]) > 0:
+        metadatas = results["metadatas"][0]
+
         for i, meta in enumerate(metadatas):
             score = meta.get("score")
             # Determine classification label
@@ -57,12 +60,20 @@ def generate_review(code_snippet: str) -> Dict[str, Any]:
                 try:
                     score_val = float(score)
                     if score_val.is_integer():
-                        score_str = f"{int(score_val):+d}" if score_val > 0 else f"{int(score_val):d}"
+                        score_str = (
+                            f"{int(score_val):+d}"
+                            if score_val > 0
+                            else f"{int(score_val):d}"
+                        )
                     else:
-                        score_str = f"+{score_val:.2f}" if score_val > 0 else f"{score_val:.2f}"
+                        score_str = (
+                            f"+{score_val:.2f}" if score_val > 0 else f"{score_val:.2f}"
+                        )
 
                     if score_val > 0:
-                        label = f"Recommended Pattern (Approved: Team feedback {score_str})"
+                        label = (
+                            f"Recommended Pattern (Approved: Team feedback {score_str})"
+                        )
                     elif score_val < 0:
                         label = f"⚠️ Anti-Pattern to Avoid (Disapproved: Team feedback {score_str})"
                     else:
@@ -71,9 +82,13 @@ def generate_review(code_snippet: str) -> Dict[str, Any]:
                     label = "Standard Reference Pattern"
 
             historical_context += f"--- Example {i+1} [{label}] ---\n"
-            historical_context += f"Historical Code:\n{meta.get('problematic_code', '')}\n"
+            historical_context += (
+                f"Historical Code:\n{meta.get('problematic_code', '')}\n"
+            )
             historical_context += f"Review Comment:\n{meta.get('review_comment', '')}\n"
-            historical_context += f"Fix Applied by Team:\n{meta.get('fixed_code', '')}\n\n"
+            historical_context += (
+                f"Fix Applied by Team:\n{meta.get('fixed_code', '')}\n\n"
+            )
 
     if not historical_context:
         historical_context = "No relevant historical examples found."
@@ -111,16 +126,16 @@ Instructions:
         "model": OLLAMA_MODEL,
         "prompt": prompt,
         "stream": False,
-        "format": "json" # Force JSON output if the model supports it
+        "format": "json",  # Force JSON output if the model supports it
     }
 
     try:
         response = requests.post(OLLAMA_API_URL, json=payload, timeout=60)
         response.raise_for_status()
         result_data = response.json()
-        
+
         reply_text = result_data.get("response", "")
-        
+
         # Parse the JSON from the LLM response
         try:
             # Clean up the response in case the model added markdown blocks
@@ -132,42 +147,48 @@ Instructions:
             if clean_reply.endswith("```"):
                 clean_reply = clean_reply[:-3]
             clean_reply = clean_reply.strip()
-                
+
             parsed_reply = json.loads(clean_reply)
-            
+
             return {
-                "review_comment": parsed_reply.get("review_comment", "No comment provided."),
-                "suggested_fix": parsed_reply.get("suggested_fix", "")
+                "review_comment": parsed_reply.get(
+                    "review_comment", "No comment provided."
+                ),
+                "suggested_fix": parsed_reply.get("suggested_fix", ""),
             }
-            
+
         except json.JSONDecodeError:
-            print(f"Error: Failed to parse LLM output as JSON. Raw output: {reply_text}")
+            print(
+                f"Error: Failed to parse LLM output as JSON. Raw output: {reply_text}"
+            )
             return {
-                "review_comment": "The AI generated a review, but it was not in the expected format.\n\nRaw output:\n" + reply_text,
-                "suggested_fix": ""
+                "review_comment": "The AI generated a review, but it was not in the expected format.\n\nRaw output:\n"
+                + reply_text,
+                "suggested_fix": "",
             }
 
     except requests.exceptions.RequestException as e:
         print(f"Error communicating with Ollama: {e}")
         return {
             "review_comment": f"Error communicating with local LLM. Please make sure Ollama is running and the model {OLLAMA_MODEL} is pulled. Error: {str(e)}",
-            "suggested_fix": ""
+            "suggested_fix": "",
         }
+
 
 if __name__ == "__main__":
     # Test the pipeline
-    test_code = '''
+    test_code = """
 def calculate_total(items):
     total = 0
     for i in range(len(items)):
         total = total + items[i].price
     return total
-    '''
+    """
     print(f"Testing review pipeline with code:\n{test_code}")
     print("Generating review... (this may take a moment)")
-    
+
     result = generate_review(test_code)
-    
+
     print("\n--- Review Results ---")
     print(f"Comment:\n{result['review_comment']}")
     print(f"\nSuggested Fix:\n{result['suggested_fix']}")

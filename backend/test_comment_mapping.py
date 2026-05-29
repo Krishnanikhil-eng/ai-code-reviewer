@@ -2,18 +2,27 @@
 Test script to verify the comment-reply feedback mapping works end-to-end.
 Tests: database queries, sentiment detection, and AI comment mapping.
 """
+
 import sys
 import os
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.core.database import (
-    init_db, save_ai_comment, is_ai_comment,
-    get_latest_ai_comment_for_pr, get_all_ai_comments_for_pr,
-    update_comment_score, get_connection
+    init_db,
+    save_ai_comment,
+    is_ai_comment,
+    get_latest_ai_comment_for_pr,
+    get_all_ai_comments_for_pr,
+    update_comment_score,
+    get_connection,
 )
 from backend.services.reaction_handler import (
-    _detect_sentiment, _find_target_ai_comment, handle_review_comment_feedback
+    _detect_sentiment,
+    _find_target_ai_comment,
+    handle_review_comment_feedback,
 )
+
 
 def run_tests():
     print("=" * 50)
@@ -26,8 +35,12 @@ def run_tests():
         conn.execute("DELETE FROM ai_comments")
 
     # Save 2 AI comments on the same PR (different files)
-    save_ai_comment(1001, "test/repo", 5, "src/main.py", "code1", "Review for main.py", "fix1")
-    save_ai_comment(1002, "test/repo", 5, "src/utils.py", "code2", "Review for utils.py", "fix2")
+    save_ai_comment(
+        1001, "test/repo", 5, "src/main.py", "code1", "Review for main.py", "fix1"
+    )
+    save_ai_comment(
+        1002, "test/repo", 5, "src/utils.py", "code2", "Review for utils.py", "fix2"
+    )
 
     passed = 0
     failed = 0
@@ -43,7 +56,9 @@ def run_tests():
     # Test 2: get_latest_ai_comment_for_pr
     latest = get_latest_ai_comment_for_pr("test/repo", 5)
     status = "PASS" if latest and latest["github_comment_id"] == 1002 else "FAIL"
-    print(f"[{status}] Test 2 - Latest AI comment on PR #5: id={latest['github_comment_id']}, file={latest['file_path']}")
+    print(
+        f"[{status}] Test 2 - Latest AI comment on PR #5: id={latest['github_comment_id']}, file={latest['file_path']}"
+    )
     passed += 1 if status == "PASS" else 0
     failed += 1 if status == "FAIL" else 0
 
@@ -64,22 +79,40 @@ def run_tests():
     failed += 1 if status == "FAIL" else 0
 
     # Test 5: Comment mapping - mention specific file
-    target_main = _find_target_ai_comment("the review on main.py is correct", "test/repo", 5)
-    status = "PASS" if target_main and target_main["file_path"] == "src/main.py" else "FAIL"
-    print(f"[{status}] Test 5a - File match 'main.py': -> {target_main['file_path'] if target_main else None}")
+    target_main = _find_target_ai_comment(
+        "the review on main.py is correct", "test/repo", 5
+    )
+    status = (
+        "PASS" if target_main and target_main["file_path"] == "src/main.py" else "FAIL"
+    )
+    print(
+        f"[{status}] Test 5a - File match 'main.py': -> {target_main['file_path'] if target_main else None}"
+    )
     passed += 1 if status == "PASS" else 0
     failed += 1 if status == "FAIL" else 0
 
     target_utils = _find_target_ai_comment("utils.py fix looks wrong", "test/repo", 5)
-    status = "PASS" if target_utils and target_utils["file_path"] == "src/utils.py" else "FAIL"
-    print(f"[{status}] Test 5b - File match 'utils.py': -> {target_utils['file_path'] if target_utils else None}")
+    status = (
+        "PASS"
+        if target_utils and target_utils["file_path"] == "src/utils.py"
+        else "FAIL"
+    )
+    print(
+        f"[{status}] Test 5b - File match 'utils.py': -> {target_utils['file_path'] if target_utils else None}"
+    )
     passed += 1 if status == "PASS" else 0
     failed += 1 if status == "FAIL" else 0
 
     # Test 6: Comment mapping - no file mentioned (falls back to latest)
     target_fallback = _find_target_ai_comment("good bot", "test/repo", 5)
-    status = "PASS" if target_fallback and target_fallback["github_comment_id"] == 1002 else "FAIL"
-    print(f"[{status}] Test 6 - Fallback to latest: -> id={target_fallback['github_comment_id'] if target_fallback else None}")
+    status = (
+        "PASS"
+        if target_fallback and target_fallback["github_comment_id"] == 1002
+        else "FAIL"
+    )
+    print(
+        f"[{status}] Test 6 - Fallback to latest: -> id={target_fallback['github_comment_id'] if target_fallback else None}"
+    )
     passed += 1 if status == "PASS" else 0
     failed += 1 if status == "FAIL" else 0
 
@@ -95,66 +128,78 @@ def run_tests():
     if target:
         update_comment_score(target["github_comment_id"], 1)
     with get_connection() as conn:
-        row = conn.execute("SELECT score FROM ai_comments WHERE github_comment_id = 1001").fetchone()
+        row = conn.execute(
+            "SELECT score FROM ai_comments WHERE github_comment_id = 1001"
+        ).fetchone()
     status = "PASS" if row and row[0] == 1 else "FAIL"
-    print(f"[{status}] Test 8 - E2E: Feedback on main.py updated score to {row[0] if row else 'N/A'}")
+    print(
+        f"[{status}] Test 8 - E2E: Feedback on main.py updated score to {row[0] if row else 'N/A'}"
+    )
     passed += 1 if status == "PASS" else 0
     failed += 1 if status == "FAIL" else 0
 
     # Test 9: handle_review_comment_feedback with direct thread mapping using in_reply_to_id
     with get_connection() as conn:
         conn.execute("UPDATE ai_comments SET score = 0")
-    
+
     payload_threaded = {
         "action": "created",
-        "comment": {
-            "id": 2001,
-            "in_reply_to_id": 1001,
-            "body": "lgtm, great work!"
-        },
-        "pull_request": {
-            "number": 5
-        },
-        "repository": {
-            "full_name": "test/repo"
-        }
+        "comment": {"id": 2001, "in_reply_to_id": 1001, "body": "lgtm, great work!"},
+        "pull_request": {"number": 5},
+        "repository": {"full_name": "test/repo"},
     }
     handle_review_comment_feedback(payload_threaded)
-    
+
     with get_connection() as conn:
-        row_ai1 = conn.execute("SELECT score FROM ai_comments WHERE github_comment_id = 1001").fetchone()
-        row_ai2 = conn.execute("SELECT score FROM ai_comments WHERE github_comment_id = 1002").fetchone()
-    
-    status = "PASS" if row_ai1 and row_ai1[0] == 1 and row_ai2 and row_ai2[0] == 0 else "FAIL"
-    print(f"[{status}] Test 9 - Threaded feedback (in_reply_to_id=1001): AI 1001 score={row_ai1[0] if row_ai1 else None}, AI 1002 score={row_ai2[0] if row_ai2 else None}")
+        row_ai1 = conn.execute(
+            "SELECT score FROM ai_comments WHERE github_comment_id = 1001"
+        ).fetchone()
+        row_ai2 = conn.execute(
+            "SELECT score FROM ai_comments WHERE github_comment_id = 1002"
+        ).fetchone()
+
+    status = (
+        "PASS"
+        if row_ai1 and row_ai1[0] == 1 and row_ai2 and row_ai2[0] == 0
+        else "FAIL"
+    )
+    print(
+        f"[{status}] Test 9 - Threaded feedback (in_reply_to_id=1001): AI 1001 score={row_ai1[0] if row_ai1 else None}, AI 1002 score={row_ai2[0] if row_ai2 else None}"
+    )
     passed += 1 if status == "PASS" else 0
     failed += 1 if status == "FAIL" else 0
 
     # Test 10: handle_review_comment_feedback without in_reply_to_id (heuristic fallback)
     with get_connection() as conn:
         conn.execute("UPDATE ai_comments SET score = 0")
-        
+
     payload_heuristic = {
         "action": "created",
         "comment": {
             "id": 2002,
-            "body": "this suggestion for utils.py is incorrect and bad suggestion"
+            "body": "this suggestion for utils.py is incorrect and bad suggestion",
         },
-        "pull_request": {
-            "number": 5
-        },
-        "repository": {
-            "full_name": "test/repo"
-        }
+        "pull_request": {"number": 5},
+        "repository": {"full_name": "test/repo"},
     }
     handle_review_comment_feedback(payload_heuristic)
-    
+
     with get_connection() as conn:
-        row_ai1 = conn.execute("SELECT score FROM ai_comments WHERE github_comment_id = 1001").fetchone()
-        row_ai2 = conn.execute("SELECT score FROM ai_comments WHERE github_comment_id = 1002").fetchone()
-        
-    status = "PASS" if row_ai1 and row_ai1[0] == 0 and row_ai2 and row_ai2[0] == -1 else "FAIL"
-    print(f"[{status}] Test 10 - Heuristic fallback (file name mention): AI 1001 score={row_ai1[0] if row_ai1 else None}, AI 1002 score={row_ai2[0] if row_ai2 else None}")
+        row_ai1 = conn.execute(
+            "SELECT score FROM ai_comments WHERE github_comment_id = 1001"
+        ).fetchone()
+        row_ai2 = conn.execute(
+            "SELECT score FROM ai_comments WHERE github_comment_id = 1002"
+        ).fetchone()
+
+    status = (
+        "PASS"
+        if row_ai1 and row_ai1[0] == 0 and row_ai2 and row_ai2[0] == -1
+        else "FAIL"
+    )
+    print(
+        f"[{status}] Test 10 - Heuristic fallback (file name mention): AI 1001 score={row_ai1[0] if row_ai1 else None}, AI 1002 score={row_ai2[0] if row_ai2 else None}"
+    )
     passed += 1 if status == "PASS" else 0
     failed += 1 if status == "FAIL" else 0
 
@@ -168,6 +213,7 @@ def run_tests():
 
     if failed > 0:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     run_tests()

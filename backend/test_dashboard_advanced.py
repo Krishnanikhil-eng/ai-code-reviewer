@@ -8,10 +8,17 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.main import app
 from backend.core.database import (
-    init_db, save_ai_comment, update_comment_score, get_connection,
-    log_action, get_audit_logs, get_repo_settings, save_repo_settings
+    init_db,
+    save_ai_comment,
+    update_comment_score,
+    get_connection,
+    log_action,
+    get_audit_logs,
+    get_repo_settings,
+    save_repo_settings,
 )
 from vector_store.chroma_client import ensure_collection
+
 
 class TestDashboardAdvanced(unittest.TestCase):
     @classmethod
@@ -24,9 +31,9 @@ class TestDashboardAdvanced(unittest.TestCase):
             conn.execute("DELETE FROM ai_comments")
             conn.execute("DELETE FROM repo_settings")
             conn.execute("DELETE FROM audit_logs")
-            
+
         self.client = TestClient(app)
-        
+
         # Clear ChromaDB test entries
         self.collection = ensure_collection()
         try:
@@ -48,11 +55,11 @@ class TestDashboardAdvanced(unittest.TestCase):
     def test_database_helpers(self):
         """Test 1: Verifies SQLite schema extensions and database helper functions."""
         print("\n--> Running Test 1: SQLite Schema Extensions & Helpers...")
-        
+
         # 1. Test log_action & get_audit_logs
         log_action("Admin", "Triggered test retraining", "ChromaDB Upsert")
         log_action("Developer", "Viewed system logs", "Dashboard UI")
-        
+
         logs = get_audit_logs(limit=10)
         self.assertEqual(len(logs), 2)
         self.assertEqual(logs[0]["user_role"], "Developer")
@@ -60,9 +67,11 @@ class TestDashboardAdvanced(unittest.TestCase):
         print("[PASS] Audit logs helpers work correctly")
 
         # 2. Test save_repo_settings & get_repo_settings
-        save_success = save_repo_settings("test/repo", 4, "security", "Review carefully", 5)
+        save_success = save_repo_settings(
+            "test/repo", 4, "security", "Review carefully", 5
+        )
         self.assertTrue(save_success)
-        
+
         settings = get_repo_settings("test/repo")
         self.assertEqual(settings["strictness"], 4)
         self.assertEqual(settings["review_mode"], "security")
@@ -73,17 +82,19 @@ class TestDashboardAdvanced(unittest.TestCase):
     def test_dashboard_stats_endpoint(self):
         """Test 2: Verifies dashboard stats calculations and response payloads."""
         print("\n--> Running Test 2: Stats Aggregations Endpoint...")
-        
+
         # Save mock reviews
         save_ai_comment(77001, "test/repo", 2, "main.py", "code1", "Good", "fix1")
         update_comment_score(77001, 3)
-        
-        save_ai_comment(77002, "test/repo", 2, "utils.py", "code2", "Bad suggestion", "fix2")
+
+        save_ai_comment(
+            77002, "test/repo", 2, "utils.py", "code2", "Bad suggestion", "fix2"
+        )
         update_comment_score(77002, -1)
 
         response = self.client.get("/api/dashboard/stats")
         self.assertEqual(response.status_code, 200)
-        
+
         data = response.json()
         self.assertEqual(data["total_reviews"], 2)
         self.assertEqual(data["positive_reviews"], 1)
@@ -95,15 +106,19 @@ class TestDashboardAdvanced(unittest.TestCase):
     def test_dashboard_reviews_paginated(self):
         """Test 3: Verifies review logs pagination, searching, and filtering."""
         print("\n--> Running Test 3: Paginated Review Logs Endpoint...")
-        
+
         # Save mock review
-        save_ai_comment(77001, "test/repo", 2, "auth.py", "def check_token(): pass", "Correct", "")
+        save_ai_comment(
+            77001, "test/repo", 2, "auth.py", "def check_token(): pass", "Correct", ""
+        )
         update_comment_score(77001, 1)
 
         # Query reviews
-        response = self.client.get("/api/dashboard/reviews?page=1&size=5&search=check_token")
+        response = self.client.get(
+            "/api/dashboard/reviews?page=1&size=5&search=check_token"
+        )
         self.assertEqual(response.status_code, 200)
-        
+
         data = response.json()
         self.assertEqual(data["total"], 1)
         self.assertEqual(len(data["reviews"]), 1)
@@ -113,13 +128,13 @@ class TestDashboardAdvanced(unittest.TestCase):
     def test_rbac_settings_protection(self):
         """Test 4: Verifies settings endpoints and RBAC administrative restrictions."""
         print("\n--> Running Test 4: Settings RBAC Protection Endpoints...")
-        
+
         # 1. Try to post settings as a Developer (Should fail 403)
         payload = {
             "repo_full_name": "test/repo",
             "strictness": 5,
             "review_mode": "performance",
-            "role": "Developer"
+            "role": "Developer",
         }
         response = self.client.post("/api/dashboard/settings", json=payload)
         self.assertEqual(response.status_code, 403)
@@ -142,25 +157,27 @@ class TestDashboardAdvanced(unittest.TestCase):
     def test_system_status_observability(self):
         """Test 5: Verifies status checkers and connection latency indicators."""
         print("\n--> Running Test 5: Observability Status & Audit Logs Endpoint...")
-        
+
         log_action("Admin", "Triggered test retraining", "ChromaDB")
-        
+
         response = self.client.get("/api/dashboard/status")
         self.assertEqual(response.status_code, 200)
-        
+
         data = response.json()
         self.assertEqual(data["database"], "online")
         self.assertTrue(len(data["audit_logs"]) >= 1)
         self.assertEqual(data["audit_logs"][0]["action"], "Triggered test retraining")
-        print("[PASS] System status endpoint returns valid latency metrics and audit logs")
+        print(
+            "[PASS] System status endpoint returns valid latency metrics and audit logs"
+        )
 
     def test_branding_configuration_endpoint(self):
         """Test 6: Verifies that the branding configuration REST API returns configured values."""
         print("\n--> Running Test 6: Dynamic Platform Branding Config Endpoint...")
-        
+
         response = self.client.get("/api/dashboard/config")
         self.assertEqual(response.status_code, 200)
-        
+
         data = response.json()
         self.assertEqual(data["platform_name"], "Antigravity AI")
         self.assertEqual(data["platform_subtitle"], "Review Analytics Platform")
@@ -168,6 +185,7 @@ class TestDashboardAdvanced(unittest.TestCase):
         self.assertEqual(data["login_logo_icon_class"], "fa-solid fa-robot")
         self.assertEqual(data["browser_title"], "Enterprise AI Reviewer Dashboard")
         print("[PASS] Branding config endpoint returns accurate dynamic defaults")
+
 
 if __name__ == "__main__":
     unittest.main()

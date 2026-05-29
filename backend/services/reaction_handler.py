@@ -2,21 +2,45 @@ import logging
 from backend.core.database import (
     update_comment_score,
     is_ai_comment,
-    get_all_ai_comments_for_pr
+    get_all_ai_comments_for_pr,
 )
 
 logger = logging.getLogger(__name__)
 
 # Keywords used to detect positive or negative feedback from developer replies
 POSITIVE_KEYWORDS = [
-    "lgtm", "good bot", "👍", "+1", "great", "correct", "helpful",
-    "thanks", "thank you", "useful", "nice catch", "good catch",
-    "agree", "makes sense", "good point", "well spotted"
+    "lgtm",
+    "good bot",
+    "👍",
+    "+1",
+    "great",
+    "correct",
+    "helpful",
+    "thanks",
+    "thank you",
+    "useful",
+    "nice catch",
+    "good catch",
+    "agree",
+    "makes sense",
+    "good point",
+    "well spotted",
 ]
 NEGATIVE_KEYWORDS = [
-    "bad bot", "👎", "-1", "wrong", "incorrect", "fix this",
-    "not helpful", "irrelevant", "false positive", "disagree",
-    "nope", "doesn't apply", "not relevant", "bad suggestion"
+    "bad bot",
+    "👎",
+    "-1",
+    "wrong",
+    "incorrect",
+    "fix this",
+    "not helpful",
+    "irrelevant",
+    "false positive",
+    "disagree",
+    "nope",
+    "doesn't apply",
+    "not relevant",
+    "bad suggestion",
 ]
 
 
@@ -42,7 +66,9 @@ def handle_reaction_event(payload: dict):
         delta = -1 if action == "created" else 1
 
     if delta != 0:
-        logger.info(f"Processing reaction '{content}' ({action}) for comment {comment_id}. Delta: {delta}")
+        logger.info(
+            f"Processing reaction '{content}' ({action}) for comment {comment_id}. Delta: {delta}"
+        )
         update_comment_score(comment_id, delta)
 
 
@@ -66,12 +92,12 @@ Respond with exactly a single JSON object containing a key "sentiment" with the 
 
 Feedback: "{comment_body}"
 """
-    
+
     payload = {
         "model": settings.OLLAMA_MODEL,
         "prompt": prompt,
         "stream": False,
-        "format": "json"
+        "format": "json",
     }
 
     try:
@@ -84,10 +110,14 @@ Feedback: "{comment_body}"
         parsed = json.loads(reply_text)
         sentiment = parsed.get("sentiment", "neutral").lower()
         if sentiment == "positive":
-            logger.info(f"LLM-Assisted Sentiment: Positive feedback detected for comment '{comment_body[:40]}...'")
+            logger.info(
+                f"LLM-Assisted Sentiment: Positive feedback detected for comment '{comment_body[:40]}...'"
+            )
             return 1
         elif sentiment == "negative":
-            logger.info(f"LLM-Assisted Sentiment: Negative feedback detected for comment '{comment_body[:40]}...'")
+            logger.info(
+                f"LLM-Assisted Sentiment: Negative feedback detected for comment '{comment_body[:40]}...'"
+            )
             return -1
     except Exception as e:
         logger.warning(f"Failed to perform LLM sentiment fallback classification: {e}")
@@ -107,14 +137,16 @@ def _detect_sentiment(comment_body: str) -> int:
         return -1
     elif any(keyword in body_lower for keyword in POSITIVE_KEYWORDS):
         return 1
-        
+
     return _detect_sentiment_with_llm(comment_body)
 
 
-def _find_target_ai_comment(comment_body: str, repo_full_name: str, pr_number: int) -> dict:
+def _find_target_ai_comment(
+    comment_body: str, repo_full_name: str, pr_number: int
+) -> dict:
     """
     Maps a developer's reply to the specific AI comment it refers to.
-    
+
     Strategy (in priority order):
     1. If the reply quotes a filename from an AI comment, match that specific comment.
     2. Otherwise, default to the most recent AI comment on the PR.
@@ -133,18 +165,22 @@ def _find_target_ai_comment(comment_body: str, repo_full_name: str, pr_number: i
             # Check if the reply mentions the filename (e.g., "main.py" or "backend/main.py")
             filename = file_path.split("/")[-1].lower()
             if filename in body_lower or file_path.lower() in body_lower:
-                logger.info(f"Matched feedback to AI comment on file '{file_path}' via filename mention.")
+                logger.info(
+                    f"Matched feedback to AI comment on file '{file_path}' via filename mention."
+                )
                 return ai_comment
 
     # Strategy 2: Fall back to the most recent AI comment on this PR
-    logger.info(f"No specific file match found. Defaulting to most recent AI comment on PR #{pr_number}.")
+    logger.info(
+        f"No specific file match found. Defaulting to most recent AI comment on PR #{pr_number}."
+    )
     return ai_comments[0]  # Already sorted by created_at DESC
 
 
 def handle_comment_feedback(payload: dict):
     """
     Analyzes a new issue_comment to determine if it's developer feedback for an AI review.
-    
+
     Workflow:
     1. Extracts PR number and repo from the payload.
     2. Checks the comment isn't from the AI itself (avoids self-scoring).
@@ -184,7 +220,9 @@ def handle_comment_feedback(payload: dict):
     # Detect sentiment from the reply text
     delta = _detect_sentiment(comment_body)
     if delta == 0:
-        logger.debug(f"No feedback sentiment detected in comment: '{comment_body[:80]}...'")
+        logger.debug(
+            f"No feedback sentiment detected in comment: '{comment_body[:80]}...'"
+        )
         return
 
     # Find the target AI comment to attribute the feedback to
@@ -199,7 +237,9 @@ def handle_comment_feedback(payload: dict):
         )
         update_comment_score(ai_comment_id, delta)
     else:
-        logger.info(f"No AI comments found for {repo_full_name} PR #{pr_number}. Feedback ignored.")
+        logger.info(
+            f"No AI comments found for {repo_full_name} PR #{pr_number}. Feedback ignored."
+        )
 
 
 def handle_review_comment_feedback(payload: dict):
@@ -223,7 +263,9 @@ def handle_review_comment_feedback(payload: dict):
 
     # Validate required fields
     if not comment_body or not repo_full_name or not pr_number:
-        logger.debug("Missing required fields in pull_request_review_comment payload. Skipping.")
+        logger.debug(
+            "Missing required fields in pull_request_review_comment payload. Skipping."
+        )
         return
 
     # Don't score our own comments
@@ -234,7 +276,9 @@ def handle_review_comment_feedback(payload: dict):
     # Detect sentiment from the reply text
     delta = _detect_sentiment(comment_body)
     if delta == 0:
-        logger.debug(f"No feedback sentiment detected in comment: '{comment_body[:80]}...'")
+        logger.debug(
+            f"No feedback sentiment detected in comment: '{comment_body[:80]}...'"
+        )
         return
 
     # Determine which AI comment to map the feedback to
@@ -244,14 +288,18 @@ def handle_review_comment_feedback(payload: dict):
         # Strategy 1: Threaded reply. If the parent comment is our AI comment, map to it directly
         if is_ai_comment(in_reply_to_id):
             target_ai_comment_id = in_reply_to_id
-            logger.info(f"Direct thread match found. Mapping feedback to parent AI comment {in_reply_to_id}.")
+            logger.info(
+                f"Direct thread match found. Mapping feedback to parent AI comment {in_reply_to_id}."
+            )
 
     if not target_ai_comment_id:
         # Strategy 2: Fall back to heuristics if not in a thread or parent not found in DB
         target = _find_target_ai_comment(comment_body, repo_full_name, pr_number)
         if target:
             target_ai_comment_id = target["github_comment_id"]
-            logger.info(f"Fallback matched feedback to AI comment {target_ai_comment_id} using heuristics.")
+            logger.info(
+                f"Fallback matched feedback to AI comment {target_ai_comment_id} using heuristics."
+            )
 
     if target_ai_comment_id:
         logger.info(
@@ -261,5 +309,6 @@ def handle_review_comment_feedback(payload: dict):
         )
         update_comment_score(target_ai_comment_id, delta)
     else:
-        logger.info(f"No target AI comment found for {repo_full_name} PR #{pr_number}. Feedback ignored.")
-
+        logger.info(
+            f"No target AI comment found for {repo_full_name} PR #{pr_number}. Feedback ignored."
+        )
