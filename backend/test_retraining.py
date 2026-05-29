@@ -1,5 +1,16 @@
 import sys
 import os
+from unittest.mock import MagicMock
+
+# Mock sentence-transformers before any module imports it to run offline and fast
+mock_transformer = MagicMock()
+mock_transformer_instance = MagicMock()
+mock_encoder_res = MagicMock()
+mock_encoder_res.tolist.return_value = [0.1] * 384
+mock_transformer_instance.encode.return_value = mock_encoder_res
+mock_transformer.return_value = mock_transformer_instance
+sys.modules['sentence_transformers'] = MagicMock()
+sys.modules['sentence_transformers'].SentenceTransformer = mock_transformer
 
 # Ensure we can import from backend and other modules
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -7,7 +18,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backend.core.database import init_db, save_ai_comment, update_comment_score, get_connection
 from retrain import run_retraining
 from vector_store.chroma_client import ensure_collection
-from ai_engine.reviewer import generate_review
 
 def run_tests():
     print("=" * 60)

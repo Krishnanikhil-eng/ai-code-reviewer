@@ -1,6 +1,14 @@
 import os
 import logging
-from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
+import io
+import asyncio
+import time
+import requests
+from concurrent.futures import ThreadPoolExecutor
+from typing import List
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
+from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from backend.core.security import verify_signature
 from backend.services.pr_processor import process_pull_request
 from backend.core.config import settings
@@ -29,7 +37,7 @@ async def github_webhook(request: Request, background_tasks: BackgroundTasks):
     
     # A. Verify Webhook Signature (Security)
     if not settings.DEBUG and not verify_signature(body, signature):
-        logger.warning(f"Invalid webhook signature received.")
+        logger.warning("Invalid webhook signature received.")
         raise HTTPException(status_code=403, detail="Invalid signature")
 
     logger.debug(f"Received GitHub Webhook Event type: {event_type}")
@@ -102,15 +110,6 @@ async def github_webhook(request: Request, background_tasks: BackgroundTasks):
 # -------------------------------------------------------------
 # ENTERPRISE DASHBOARD API ENDPOINTS & WEBSOCKETS
 # -------------------------------------------------------------
-from fastapi import WebSocket, WebSocketDisconnect
-from fastapi.responses import StreamingResponse
-from fastapi.staticfiles import StaticFiles
-from typing import List
-import io
-import asyncio
-import time
-import requests
-from concurrent.futures import ThreadPoolExecutor
 
 class ConnectionManager:
     def __init__(self):
@@ -438,7 +437,7 @@ async def delete_memory(request: Request):
     try:
         collection = ensure_collection()
         collection.delete(ids=[memory_id])
-        log_action(role, f"Deleted vector memory entry", f"ID: {memory_id}")
+        log_action(role, "Deleted vector memory entry", f"ID: {memory_id}")
         await manager.broadcast({"event": "refresh"})
         return {"status": "success"}
     except Exception as e:
@@ -473,7 +472,7 @@ async def boost_memory(request: Request):
             embedding = model.encode(meta.get("problematic_code", "")).tolist()
             
         collection.upsert(ids=[memory_id], embeddings=[embedding], metadatas=[meta])
-        log_action(role, f"Boosted vector memory score", f"ID: {memory_id}, New Score: {boost_score:.2f}")
+        log_action(role, "Boosted vector memory score", f"ID: {memory_id}, New Score: {boost_score:.2f}")
         await manager.broadcast({"event": "refresh"})
         return {"status": "success"}
     except Exception as e:

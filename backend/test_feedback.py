@@ -1,21 +1,30 @@
 import sys
 import os
-import json
-import sqlite3
-import pytest
+from unittest.mock import MagicMock
+
+# Mock sentence-transformers before any module imports it to run offline and fast
+mock_transformer = MagicMock()
+mock_transformer_instance = MagicMock()
+mock_encoder_res = MagicMock()
+mock_encoder_res.tolist.return_value = [0.1] * 384
+mock_transformer_instance.encode.return_value = mock_encoder_res
+mock_transformer.return_value = mock_transformer_instance
+sys.modules['sentence_transformers'] = MagicMock()
+sys.modules['sentence_transformers'].SentenceTransformer = mock_transformer
+
 from fastapi.testclient import TestClient
 
 # Ensure we can import from the root
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.main import app
-from backend.core.database import DB_PATH, get_connection
+from backend.core.database import get_connection
 
 client = TestClient(app)
 
 def test_feedback_loop():
     # 1. Setup: Ensure database is clean
-    from backend.core.database import init_db, save_ai_comment, get_connection
+    from backend.core.database import init_db, save_ai_comment
     init_db()
     
     with get_connection() as conn:

@@ -44,7 +44,7 @@ def run_test():
 
     if dataset_path.exists():
         size = dataset_path.stat().st_size
-        print(f"Dataset saved to database/training_data.json")
+        print("Dataset saved to database/training_data.json")
         print(f"Output JSON size: {size} bytes")
     else:
         print("Failed to find training_data.json output.")

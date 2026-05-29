@@ -2,7 +2,6 @@ import logging
 from backend.core.database import (
     update_comment_score,
     is_ai_comment,
-    get_latest_ai_comment_for_pr,
     get_all_ai_comments_for_pr
 )
 

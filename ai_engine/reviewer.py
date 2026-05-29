@@ -3,6 +3,7 @@ import sys
 import json
 import requests
 from typing import Dict, Any
+from backend.core.config import settings
 
 # Ensure we can import from vector_store
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -21,8 +22,6 @@ def _get_embedder():
         except ImportError:
             raise ImportError("sentence-transformers is not installed. Please install it.")
     return _embedder_model
-
-from backend.core.config import settings
 
 OLLAMA_API_URL = settings.OLLAMA_API_URL
 OLLAMA_MODEL = settings.OLLAMA_MODEL

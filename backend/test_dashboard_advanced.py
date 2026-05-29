@@ -1,9 +1,7 @@
 import sys
 import os
-import json
 import unittest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
 
 # Ensure we can import from backend and other modules
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

@@ -35,7 +35,7 @@ def run_tests():
     # Test 1: is_ai_comment
     r1 = is_ai_comment(1001)
     r2 = is_ai_comment(9999)
-    status = "PASS" if r1 == True and r2 == False else "FAIL"
+    status = "PASS" if r1 and not r2 else "FAIL"
     print(f"\n[{status}] Test 1 - is_ai_comment: AI=1001 -> {r1}, Random=9999 -> {r2}")
     passed += 1 if status == "PASS" else 0
     failed += 1 if status == "FAIL" else 0
