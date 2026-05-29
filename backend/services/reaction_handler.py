@@ -47,9 +47,59 @@ def handle_reaction_event(payload: dict):
         update_comment_score(comment_id, delta)
 
 
+def _detect_sentiment_with_llm(comment_body: str) -> int:
+    """
+    Uses the local Ollama LLM to classify developer feedback sentiment
+    when keyword detection falls back to neutral.
+    Returns +1 for positive, -1 for negative, 0 for neutral.
+    """
+    from backend.core.config import settings
+    import requests
+    import json
+
+    prompt = f"""You are an assistant that classifies developer feedback comments on AI review suggestions.
+Classify the following feedback as either:
+- "positive" (agreement, thank you, good catch, helpful suggestion, correct fix)
+- "negative" (disagreement, wrong logic, bad suggestion, incorrect fix, not helpful, ignore this suggestion)
+- "neutral" (unrelated questions, discussion, comments not expressing explicit approval/disapproval)
+
+Respond with exactly a single JSON object containing a key "sentiment" with the value "positive", "negative", or "neutral". Do not write any other text or markdown blocks.
+
+Feedback: "{comment_body}"
+"""
+    
+    payload = {
+        "model": settings.OLLAMA_MODEL,
+        "prompt": prompt,
+        "stream": False,
+        "format": "json"
+    }
+
+    try:
+        response = requests.post(settings.OLLAMA_API_URL, json=payload, timeout=10)
+        response.raise_for_status()
+        result_data = response.json()
+        reply_text = result_data.get("response", "").strip()
+
+        # Parse JSON
+        parsed = json.loads(reply_text)
+        sentiment = parsed.get("sentiment", "neutral").lower()
+        if sentiment == "positive":
+            logger.info(f"LLM-Assisted Sentiment: Positive feedback detected for comment '{comment_body[:40]}...'")
+            return 1
+        elif sentiment == "negative":
+            logger.info(f"LLM-Assisted Sentiment: Negative feedback detected for comment '{comment_body[:40]}...'")
+            return -1
+    except Exception as e:
+        logger.warning(f"Failed to perform LLM sentiment fallback classification: {e}")
+
+    return 0
+
+
 def _detect_sentiment(comment_body: str) -> int:
     """
     Analyzes comment text for positive or negative feedback keywords.
+    Falls back to LLM-assisted classification if keyword mapping is neutral.
     Returns +1 for positive, -1 for negative, 0 for neutral.
     """
     body_lower = comment_body.lower().strip()
@@ -58,7 +108,8 @@ def _detect_sentiment(comment_body: str) -> int:
         return -1
     elif any(keyword in body_lower for keyword in POSITIVE_KEYWORDS):
         return 1
-    return 0
+        
+    return _detect_sentiment_with_llm(comment_body)
 
 
 def _find_target_ai_comment(comment_body: str, repo_full_name: str, pr_number: int) -> dict:

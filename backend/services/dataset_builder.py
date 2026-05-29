@@ -41,24 +41,14 @@ class DatasetBuilder:
             logger.warning(f"Could not fetch '{file_path}' at commit {commit_sha[:7]}: {e}")
             return None
 
-    def _extract_fixed_code(self, repo, comment) -> str:
+    def _extract_fixed_code_window(self, repo, comment) -> str:
         """
-        Extracts the fixed version of code by comparing file content at two commits:
-        - original_commit_id: the commit where the review comment was placed (before fix)
-        - commit_id: the latest commit on the PR (after the developer addressed the review)
-
-        If the commits differ, fetches the file at commit_id and extracts a focused
-        window of lines around the commented line as the "fixed" code.
+        Extracts a focused window of lines around the commented line as the "fixed" code.
         """
-        original_sha = getattr(comment, 'original_commit_id', None)
         latest_sha = getattr(comment, 'commit_id', None)
         file_path = getattr(comment, 'path', None)
 
         if not latest_sha or not file_path:
-            return ""
-
-        # If both commits are the same, no fix has been pushed yet
-        if original_sha and original_sha == latest_sha:
             return ""
 
         try:
@@ -86,8 +76,50 @@ class DatasetBuilder:
             return fixed_content[:3000] + "\n# ... (truncated)"
 
         except Exception as e:
-            logger.warning(f"Error extracting fixed code for {file_path}: {e}")
+            logger.warning(f"Error extracting fixed code window for {file_path}: {e}")
             return ""
+
+    def _extract_fixed_code(self, repo, comment) -> str:
+        """
+        Extracts the fixed version of code.
+        First tries to extract the precise diff patch changes between:
+        - original_commit_id: commit before fix
+        - commit_id: commit after fix
+        
+        Falls back to a lines-window if the precise diff comparison is empty or fails.
+        """
+        original_sha = getattr(comment, 'original_commit_id', None)
+        latest_sha = getattr(comment, 'commit_id', None)
+        file_path = getattr(comment, 'path', None)
+
+        if not latest_sha or not file_path:
+            return ""
+
+        # If both commits are the same, no fix has been pushed yet
+        if original_sha and original_sha == latest_sha:
+            return ""
+
+        # Strategy 1: Precise patch-based extraction
+        if repo and original_sha:
+            try:
+                comparison = repo.compare(original_sha, latest_sha)
+                for file in comparison.files:
+                    if file.filename == file_path:
+                        patch = file.patch
+                        if patch:
+                            # Extract added lines (lines starting with '+' but not '+++')
+                            added_lines = []
+                            for line in patch.split("\n"):
+                                if line.startswith("+") and not line.startswith("+++"):
+                                    added_lines.append(line[1:])
+                            if added_lines:
+                                logger.info(f"Successfully extracted precise patch-based fix for {file_path}")
+                                return "\n".join(added_lines)
+            except Exception as e:
+                logger.warning(f"Failed to extract precise patch-based fix: {e}. Falling back to window method.")
+
+        # Strategy 2: Fall back to window extraction
+        return self._extract_fixed_code_window(repo, comment)
 
     def extract_from_comment(self, repo_name: str, pr_number: int, comment: Any, repo=None) -> Dict[str, Any]:
         """

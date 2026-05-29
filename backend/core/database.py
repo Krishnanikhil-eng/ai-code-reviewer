@@ -121,7 +121,95 @@ def get_all_ai_comments_for_pr(repo_full_name, pr_number):
         logger.error(f"Failed to fetch AI comments for PR #{pr_number}: {e}")
         return []
 
-# Initialize the DB on module import
-if not os.path.exists(DB_PATH):
-    init_db()
+
+def log_action(user_role, action, target):
+    """Logs an administrative action to the audit logs."""
+    try:
+        with get_connection() as conn:
+            conn.execute("""
+                INSERT INTO audit_logs (user_role, action, target)
+                VALUES (?, ?, ?)
+            """, (user_role, action, target))
+            return True
+    except Exception as e:
+        logger.error(f"Failed to save audit log: {e}")
+        return False
+
+
+def get_audit_logs(limit=50):
+    """Retrieves recent audit logs."""
+    try:
+        with get_connection() as conn:
+            results = conn.execute("""
+                SELECT id, user_role, action, target, timestamp
+                FROM audit_logs
+                ORDER BY timestamp DESC, id DESC
+                LIMIT ?
+            """, (limit,)).fetchall()
+            return [
+                {
+                    "id": row[0],
+                    "user_role": row[1],
+                    "action": row[2],
+                    "target": row[3],
+                    "timestamp": row[4]
+                }
+                for row in results
+            ]
+    except Exception as e:
+        logger.error(f"Failed to fetch audit logs: {e}")
+        return []
+
+
+def get_repo_settings(repo_full_name):
+    """Retrieves repository-level review configurations."""
+    try:
+        with get_connection() as conn:
+            row = conn.execute("""
+                SELECT strictness, review_mode, custom_prompt, retrieval_depth
+                FROM repo_settings
+                WHERE repo_full_name = ?
+            """, (repo_full_name,)).fetchone()
+            if row:
+                return {
+                    "repo_full_name": repo_full_name,
+                    "strictness": row[0],
+                    "review_mode": row[1],
+                    "custom_prompt": row[2],
+                    "retrieval_depth": row[3]
+                }
+    except Exception as e:
+        logger.error(f"Failed to fetch repo settings: {e}")
+
+    # Return defaults if not configured
+    return {
+        "repo_full_name": repo_full_name,
+        "strictness": 3,
+        "review_mode": "standard",
+        "custom_prompt": "",
+        "retrieval_depth": 3
+    }
+
+
+def save_repo_settings(repo_full_name, strictness, review_mode, custom_prompt, retrieval_depth):
+    """Saves or updates repository-level review configurations."""
+    try:
+        with get_connection() as conn:
+            conn.execute("""
+                INSERT INTO repo_settings (repo_full_name, strictness, review_mode, custom_prompt, retrieval_depth)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(repo_full_name) DO UPDATE SET
+                    strictness = excluded.strictness,
+                    review_mode = excluded.review_mode,
+                    custom_prompt = excluded.custom_prompt,
+                    retrieval_depth = excluded.retrieval_depth
+            """, (repo_full_name, strictness, review_mode, custom_prompt, retrieval_depth))
+            return True
+    except Exception as e:
+        logger.error(f"Failed to save repo settings: {e}")
+        return False
+
+
+# Initialize the DB on module import (idempotent table creations)
+init_db()
 

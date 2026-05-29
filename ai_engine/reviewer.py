@@ -42,15 +42,36 @@ def generate_review(code_snippet: str) -> Dict[str, Any]:
     model = _get_embedder()
     embedding = model.encode(code_snippet).tolist()
 
-    # 2. Query ChromaDB for top 3 similar historical examples
-    results = query_similar(embedding, n_results=3)
+    # 2. Query ChromaDB for top 5 similar historical examples
+    results = query_similar(embedding, n_results=5)
     
     historical_context = ""
     if results and results['metadatas'] and len(results['metadatas']) > 0:
         metadatas = results['metadatas'][0]
         
         for i, meta in enumerate(metadatas):
-            historical_context += f"--- Example {i+1} ---\n"
+            score = meta.get("score")
+            # Determine classification label
+            if score is None:
+                label = "Standard Reference Pattern (Recommended)"
+            else:
+                try:
+                    score_val = float(score)
+                    if score_val.is_integer():
+                        score_str = f"{int(score_val):+d}" if score_val > 0 else f"{int(score_val):d}"
+                    else:
+                        score_str = f"+{score_val:.2f}" if score_val > 0 else f"{score_val:.2f}"
+
+                    if score_val > 0:
+                        label = f"Recommended Pattern (Approved: Team feedback {score_str})"
+                    elif score_val < 0:
+                        label = f"⚠️ Anti-Pattern to Avoid (Disapproved: Team feedback {score_str})"
+                    else:
+                        label = "Standard Reference Pattern"
+                except (ValueError, TypeError):
+                    label = "Standard Reference Pattern"
+
+            historical_context += f"--- Example {i+1} [{label}] ---\n"
             historical_context += f"Historical Code:\n{meta.get('problematic_code', '')}\n"
             historical_context += f"Review Comment:\n{meta.get('review_comment', '')}\n"
             historical_context += f"Fix Applied by Team:\n{meta.get('fixed_code', '')}\n\n"
@@ -61,17 +82,20 @@ def generate_review(code_snippet: str) -> Dict[str, Any]:
     # 3. Construct prompt for Ollama
     system_prompt = """You are an expert AI code reviewer integrated into a development team's workflow.
 Your goal is to review the provided code snippet and suggest improvements. 
-Crucially, you must follow the team's historical coding patterns when making suggestions.
+Crucially, you must follow the team's historical coding patterns when making suggestions, and avoid suggestions they have rejected.
 
 You will be provided with:
-1. Historical Examples: Similar past code issues, the review comments made by the team, and how the team fixed them.
+1. Historical Examples: Past code reviews. These are classified into:
+   - "Recommended Pattern" or "Standard Reference Pattern": Approved review patterns you should match and mimic.
+   - "⚠️ Anti-Pattern to Avoid": Review suggestions that developers previously rejected as incorrect or unhelpful. You MUST NOT repeat these rejected suggestions or suggest similar incorrect changes for matching code.
 2. New Code Snippet: The code you need to review now.
 
 Instructions:
 1. Analyze the New Code Snippet.
-2. If it contains issues similar to the Historical Examples, suggest a fix that aligns with how the team solved it in the past.
-3. If there are other bugs, security issues, or performance problems, explain them clearly.
-4. Output your response as a valid JSON object with EXACTLY two keys: "review_comment" (string) and "suggested_fix" (string). If no fix is needed, leave "suggested_fix" empty. Do NOT include markdown code blocks around the JSON output, just output raw JSON."""
+2. If the code resembles a "Recommended Pattern" or "Standard Reference Pattern", suggest a review comment and fix that aligns with the team's historical patterns.
+3. If the code resembles an "⚠️ Anti-Pattern to Avoid", pay close attention: do NOT generate the review comments or suggestions from that example. Instead, identify why it was disliked, and either skip suggesting it entirely or suggest a correct alternative if applicable.
+4. If there are other bugs, security issues, or performance problems, explain them clearly.
+5. Output your response as a valid JSON object with EXACTLY two keys: "review_comment" (string) and "suggested_fix" (string). If no fix is needed, leave "suggested_fix" empty. Do NOT include markdown code blocks around the JSON output, just output raw JSON."""
 
     user_prompt = f"""
 ## Historical Examples (Team Context)

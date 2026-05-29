@@ -31,3 +31,15 @@ def query_similar(embedding: list[float], n_results: int = 3):
         n_results=n_results
     )
     return results
+
+
+def upsert_embedding(id: str, embedding: list[float], metadata: dict):
+    """Upsert an embedding and its associated metadata to the collection.
+    """
+    collection = ensure_collection()
+    collection.upsert(
+        ids=[id],
+        embeddings=[embedding],
+        metadatas=[metadata]
+    )
+

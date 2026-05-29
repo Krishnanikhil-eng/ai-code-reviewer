@@ -14,3 +14,19 @@ CREATE TABLE IF NOT EXISTS ai_comments (
 );
 
 CREATE INDEX IF NOT EXISTS idx_gh_comment_id ON ai_comments(github_comment_id);
+
+CREATE TABLE IF NOT EXISTS repo_settings (
+    repo_full_name TEXT PRIMARY KEY,
+    strictness INTEGER DEFAULT 3,
+    review_mode TEXT DEFAULT 'standard',
+    custom_prompt TEXT DEFAULT '',
+    retrieval_depth INTEGER DEFAULT 3
+);
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_role TEXT NOT NULL,
+    action TEXT NOT NULL,
+    target TEXT,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

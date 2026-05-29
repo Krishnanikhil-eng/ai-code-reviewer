@@ -12,6 +12,13 @@ class Settings(BaseSettings):
     # AI Engine settings
     OLLAMA_API_URL: str = "http://localhost:11434/api/generate"
     OLLAMA_MODEL: str = "llama3"
+
+    # Configurable branding constants
+    DASHBOARD_PLATFORM_NAME: str = "Antigravity AI"
+    DASHBOARD_PLATFORM_SUBTITLE: str = "Review Analytics Platform"
+    DASHBOARD_LOGO_ICON_CLASS: str = "fa-solid fa-brain"
+    DASHBOARD_LOGIN_LOGO_ICON_CLASS: str = "fa-solid fa-robot"
+    DASHBOARD_BROWSER_TITLE: str = "Enterprise AI Reviewer Dashboard"
     
     class Config:
         env_file = ".env"

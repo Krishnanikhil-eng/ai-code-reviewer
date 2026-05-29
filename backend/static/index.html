@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise AI Reviewer Dashboard</title>
+    
+    <!-- Fonts and Iconographies -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- ApexCharts CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    
+    <!-- CSS Stylesheet link -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Background Animated Mesh Gradient -->
+    <div class="mesh-background"></div>
+
+    <!-- Simulated OAuth Authentication Overlay Shield -->
+    <div id="auth-shield" class="modal-overlay">
+        <div class="glass-card auth-card">
+            <div class="auth-header">
+                <i id="icon-login-logo" class="fa-solid fa-robot auth-logo"></i>
+                <h2 id="txt-login-title">Enterprise Code Reviewer</h2>
+                <p id="txt-login-subtitle">Administrative Control Console</p>
+            </div>
+            <div class="auth-body">
+                <button id="btn-login" class="btn btn-primary btn-block">
+                    <i class="fa-brands fa-github"></i> Sign in with GitHub App
+                </button>
+                <div class="auth-footer">
+                    <span>Secure Session Encryption Enabled</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App Container Layout -->
+    <div class="app-container">
+        
+        <!-- Header Bar -->
+        <header class="glass-header">
+            <div class="header-logo">
+                <i id="icon-brand-logo" class="fa-solid fa-brain logo-icon"></i>
+                <div class="logo-text">
+                    <h1 id="txt-brand-name">Antigravity AI</h1>
+                    <span id="txt-brand-subtitle">Review Analytics Platform</span>
+                </div>
+            </div>
+            
+            <div class="header-controls">
+                <!-- WebSocket Live Update Indicator -->
+                <div class="live-status">
+                    <span class="status-pulse"></span>
+                    <span id="txt-live-status">Connecting Live updates...</span>
+                </div>
+
+                <!-- Theme Toggler -->
+                <button id="btn-theme-toggle" class="btn btn-icon" title="Toggle Light/Dark Mode">
+                    <i class="fa-solid fa-moon"></i>
+                </button>
+                
+                <!-- RBAC Simulation Dropdown -->
+                <div class="rbac-selector">
+                    <i class="fa-solid fa-user-shield"></i>
+                    <select id="select-role">
+                        <option value="Admin">Admin Console</option>
+                        <option value="TechLead">Tech Lead View</option>
+                        <option value="Developer" selected>Developer Viewer</option>
+                    </select>
+                </div>
+                
+                <button id="btn-logout" class="btn btn-outline btn-sm">
+                    <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+                </button>
+            </div>
+        </header>
+
+        <!-- Sidebar Navigation & Workspace -->
+        <div class="main-layout">
+            <aside class="glass-sidebar">
+                <nav class="sidebar-nav">
+                    <button class="nav-item active" data-tab="overview">
+                        <i class="fa-solid fa-chart-pie"></i> Overview Dashboard
+                    </button>
+                    <button class="nav-item" data-tab="reviews">
+                        <i class="fa-solid fa-list-check"></i> Historical Review Audit
+                    </button>
+                    <button class="nav-item" data-tab="memory">
+                        <i class="fa-solid fa-database"></i> AI RAG Memory
+                    </button>
+                    <button class="nav-item" data-tab="settings">
+                        <i class="fa-solid fa-sliders"></i> Repository Settings
+                    </button>
+                    <button class="nav-item" data-tab="health">
+                        <i class="fa-solid fa-shield-heart"></i> System Observability
+                    </button>
+                </nav>
+                <div class="sidebar-footer">
+                    <p>Version 0.1.0-Enterprise</p>
+                </div>
+            </aside>
+
+            <!-- Dynamic Viewport Panel -->
+            <main class="viewport-panel">
+                
+                <!-- TAB 1: OVERVIEW DASHBOARD -->
+                <section id="tab-overview" class="tab-content active">
+                    <!-- Metric Cards Grid -->
+                    <div class="metrics-grid">
+                        <div class="glass-card stat-card">
+                            <div class="stat-icon purple"><i class="fa-solid fa-message-code"></i><i class="fa-solid fa-code"></i></div>
+                            <div class="stat-details">
+                                <h3 id="stat-total-reviews">-</h3>
+                                <span>Total Reviews Logged</span>
+                            </div>
+                        </div>
+                        <div class="glass-card stat-card">
+                            <div class="stat-icon emerald"><i class="fa-solid fa-check-double"></i></div>
+                            <div class="stat-details">
+                                <h3 id="stat-helpfulness-rate">-</h3>
+                                <span>Helpfulness Rate</span>
+                            </div>
+                        </div>
+                        <div class="glass-card stat-card">
+                            <div class="stat-icon rose"><i class="fa-solid fa-circle-exclamation"></i></div>
+                            <div class="stat-details">
+                                <h3 id="stat-false-positive-rate">-</h3>
+                                <span>False Positive Rate</span>
+                            </div>
+                        </div>
+                        <div class="glass-card stat-card">
+                            <div class="stat-icon blue"><i class="fa-solid fa-git-fork"></i></div>
+                            <div class="stat-details">
+                                <h3 id="stat-repos-count">-</h3>
+                                <span>Monitored Repos</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Observability & Chart Widgets -->
+                    <div class="charts-grid">
+                        <div class="glass-card chart-card flex-double">
+                            <div class="card-header">
+                                <h3>Review Sentiment Trend over Time</h3>
+                                <span>Approval rate running average</span>
+                            </div>
+                            <div class="card-body">
+                                <div id="chart-sentiment-trend"></div>
+                            </div>
+                        </div>
+                        <div class="glass-card chart-card flex-single">
+                            <div class="card-header">
+                                <h3>Feedback Distribution</h3>
+                                <span>Approved suggestions vs Anti-patterns</span>
+                            </div>
+                            <div class="card-body">
+                                <div id="chart-feedback-pie"></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- TAB 2: HISTORICAL REVIEW AUDIT -->
+                <section id="tab-reviews" class="tab-content">
+                    <div class="glass-card flex-layout-card">
+                        <div class="table-filters">
+                            <div class="filter-group flex-fill">
+                                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                                <input type="text" id="filter-search" placeholder="Search comments, reviewed code, file paths...">
+                            </div>
+                            <div class="filter-group">
+                                <select id="filter-repo">
+                                    <option value="">All Repositories</option>
+                                    <option value="test/repo">test/repo</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <select id="filter-sentiment">
+                                    <option value="">All Sentiments</option>
+                                    <option value="positive">Positive Reviews</option>
+                                    <option value="negative">Rejected Anti-patterns</option>
+                                    <option value="neutral">Neutral/Unrated</option>
+                                </select>
+                            </div>
+                            <button id="btn-reset-filters" class="btn btn-outline" title="Reset Filters">
+                                <i class="fa-solid fa-rotate-left"></i>
+                            </button>
+                        </div>
+
+                        <!-- Paginated Table Container -->
+                        <div class="table-container">
+                            <table class="data-table" id="table-audit-log">
+                                <thead>
+                                    <tr>
+                                        <th>PR Number</th>
+                                        <th>Repository</th>
+                                        <th>Target File Path</th>
+                                        <th>Sentiment Score</th>
+                                        <th>Decayed RAG Weight</th>
+                                        <th>Date Logged</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Skeleton Loader will inject here -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="table-pagination">
+                            <span id="txt-page-info">Showing 0-0 of 0 entries</span>
+                            <div class="pagination-buttons">
+                                <button id="btn-page-prev" class="btn btn-outline btn-sm"><i class="fa-solid fa-chevron-left"></i> Prev</button>
+                                <button id="btn-page-next" class="btn btn-outline btn-sm">Next <i class="fa-solid fa-chevron-right"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- TAB 3: AI RAG MEMORY EDITOR -->
+                <section id="tab-memory" class="tab-content">
+                    <div class="glass-card flex-layout-card">
+                        <div class="card-header border-bottom">
+                            <div class="header-title">
+                                <h3>Vector Database Memory Inspector</h3>
+                                <p>View, boost, or prune guidelines embedded inside the ChromaDB code_reviews vector collection.</p>
+                            </div>
+                            <div class="header-action">
+                                <div class="filter-group">
+                                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                                    <input type="text" id="filter-memory-search" placeholder="Search code, review suggestions...">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- RBAC Alert Banner -->
+                        <div id="rbac-memory-banner" class="rbac-banner warning" style="display: none;">
+                            <i class="fa-solid fa-circle-info"></i>
+                            <span>You are operating under Developer/Tech Lead view. Modifying memories (Boosting, Deleting) requires <strong>Admin Console</strong> permissions.</span>
+                        </div>
+
+                        <div class="table-container">
+                            <table class="data-table" id="table-memory-logs">
+                                <thead>
+                                    <tr>
+                                        <th>Source Layer</th>
+                                        <th>Reviewed Pattern</th>
+                                        <th>Suggested Review Comment</th>
+                                        <th>Score Weight</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Dynamic rows loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- TAB 4: REPOSITORY SETTINGS CONFIG -->
+                <section id="tab-settings" class="tab-content">
+                    <div class="glass-card-grid">
+                        <div class="glass-card settings-card">
+                            <div class="card-header border-bottom">
+                                <h3>Repository Review Customizer</h3>
+                                <p>Control the review strictness, specialized modes, and custom guidelines for each workspace.</p>
+                            </div>
+                            
+                            <!-- RBAC Alert Banner -->
+                            <div id="rbac-settings-banner" class="rbac-banner warning" style="display: none;">
+                                <i class="fa-solid fa-circle-info"></i>
+                                <span>You are operating under Developer/Tech Lead view. Modifying configurations requires <strong>Admin Console</strong> permissions.</span>
+                            </div>
+
+                            <form id="form-repo-settings" class="settings-form">
+                                <div class="form-group">
+                                    <label for="settings-select-repo">Target Repository</label>
+                                    <select id="settings-select-repo">
+                                        <option value="test/repo">test/repo</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Review Aggression Strictness</label>
+                                    <div class="range-container">
+                                        <input type="range" id="settings-strictness" min="1" max="5" value="3">
+                                        <div class="range-labels">
+                                            <span>Relaxed</span>
+                                            <span>Balanced</span>
+                                            <span>Strict</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="settings-review-mode">Focus Mode</label>
+                                    <select id="settings-review-mode">
+                                        <option value="standard">Standard Balanced Mode</option>
+                                        <option value="security">Security-Focused Review (Vulnerabilities/Threats)</option>
+                                        <option value="performance">Performance-Focused Review (Efficiency/Latency)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="settings-retrieval-depth">RAG Retrieval Depth (Context Count)</label>
+                                    <select id="settings-retrieval-depth">
+                                        <option value="1">1 Example (Lightweight)</option>
+                                        <option value="3" selected>3 Examples (Recommended)</option>
+                                        <option value="5">5 Examples (Thorough Context)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="settings-custom-prompt">Custom Guidelines System Prompt override</label>
+                                    <textarea id="settings-custom-prompt" rows="5" placeholder="Define custom guidelines. E.g., 'Prefer using standard library functions over custom helpers...'"></textarea>
+                                </div>
+                                <button type="submit" id="btn-save-settings" class="btn btn-primary">
+                                    <i class="fa-solid fa-floppy-disk"></i> Apply Repository Configurations
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- TAB 5: SYSTEM OBSERVABILITY & RETRAINING -->
+                <section id="tab-health" class="tab-content">
+                    <div class="observability-dashboard">
+                        <!-- Observability Connectivity Latency Cards -->
+                        <div class="health-grid">
+                            <div class="glass-card health-card" id="health-card-db">
+                                <h3>SQLite Database</h3>
+                                <div class="health-meta">
+                                    <span class="health-badge online">ONLINE</span>
+                                    <span class="latency" id="txt-latency-db">- ms</span>
+                                </div>
+                            </div>
+                            <div class="glass-card health-card" id="health-card-chroma">
+                                <h3>ChromaDB Store</h3>
+                                <div class="health-meta">
+                                    <span class="health-badge online">ONLINE</span>
+                                    <span class="latency" id="txt-latency-chroma">- ms</span>
+                                </div>
+                            </div>
+                            <div class="glass-card health-card" id="health-card-ollama">
+                                <h3>Ollama LLM Engine</h3>
+                                <div class="health-meta">
+                                    <span class="health-badge online">ONLINE</span>
+                                    <span class="latency" id="txt-latency-ollama">- ms</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="health-detail-grid">
+                            <!-- Retraining Terminal Panel -->
+                            <div class="glass-card console-card">
+                                <div class="card-header border-bottom">
+                                    <div class="header-title">
+                                        <h3>Score-Based Retraining Terminal Console</h3>
+                                        <p>Instruct ChromaDB to process rated code snippets from SQLite and adjust search embeddings weights.</p>
+                                    </div>
+                                    <button id="btn-trigger-retrain" class="btn btn-outline btn-sm">
+                                        <i class="fa-solid fa-play"></i> Trigger Retraining
+                                    </button>
+                                </div>
+                                <div class="terminal-body" id="console-terminal">
+                                    <div class="terminal-line system">[Ready] Terminal console listening. Click trigger to run retrainer pipeline.</div>
+                                </div>
+                            </div>
+
+                            <!-- Audit Logs Panel -->
+                            <div class="glass-card audit-logs-card">
+                                <div class="card-header border-bottom">
+                                    <h3>Administrative Audit Trails</h3>
+                                    <p>History of secure session events and configurations updates.</p>
+                                </div>
+                                <div class="audit-trail-list" id="audit-trail-container">
+                                    <!-- Logs items injected here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <!-- Review Details Drawer Slider Overlay -->
+    <div id="drawer-review-details" class="drawer-overlay">
+        <div class="glass-drawer">
+            <div class="drawer-header border-bottom">
+                <h3>Review Explanation Context</h3>
+                <button id="btn-close-drawer" class="btn btn-icon"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="drawer-body">
+                <div class="drawer-meta-section">
+                    <div class="meta-item">
+                        <span>Repository</span>
+                        <h4 id="drawer-repo">-</h4>
+                    </div>
+                    <div class="meta-item">
+                        <span>PR Number</span>
+                        <h4 id="drawer-pr">-</h4>
+                    </div>
+                    <div class="meta-item">
+                        <span>ChromaDB Weight</span>
+                        <h4 id="drawer-decay-score">-</h4>
+                    </div>
+                    <div class="meta-item">
+                        <span>Similarity Score</span>
+                        <h4 id="drawer-similarity">-</h4>
+                    </div>
+                </div>
+
+                <!-- Explainable RAG section -->
+                <div class="explainability-block">
+                    <h4><i class="fa-solid fa-circle-question"></i> Generation Rationale</h4>
+                    <p id="drawer-explanation">This review comment was generated because the developer's problematic code snippet matched our team's standard conventions on list aggregations.</p>
+                </div>
+
+                <div class="drawer-code-block">
+                    <h4>Problematic Code Reviewed</h4>
+                    <pre><code id="drawer-problem-code">-</code></pre>
+                </div>
+                <div class="drawer-code-block">
+                    <h4>AI Suggested Comment & Fix</h4>
+                    <div class="suggested-comment" id="drawer-comment">-</div>
+                    <pre><code id="drawer-suggested-fix">-</code></pre>
+                </div>
+                <div class="drawer-code-block">
+                    <h4>Developer Applied Fix (Precise diff patch)</h4>
+                    <pre><code id="drawer-applied-fix" class="fix">-</code></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Boost Modal -->
+    <div id="modal-boost" class="modal-overlay hidden">
+        <div class="glass-card modal-card">
+            <div class="modal-header">
+                <h3>Boost Memory Weight</h3>
+                <button id="btn-close-modal" class="btn btn-icon"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <p>Adjust the retrieval score boost for this memory entry. Higher weights will prioritize this pattern in future PR reviews.</p>
+                <div class="form-group">
+                    <label for="boost-score-input">Weight Score</label>
+                    <input type="number" id="boost-score-input" step="0.5" min="-5" max="10" value="5.0">
+                </div>
+                <button id="btn-save-boost" class="btn btn-primary btn-block">Apply Score Boost</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
