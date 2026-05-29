@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 # Ensure we can import from the root
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.main import app
 from backend.core.database import DB_PATH, get_connection
@@ -65,6 +65,31 @@ def test_feedback_loop():
     with get_connection() as conn:
         res = conn.execute("SELECT score FROM ai_comments WHERE github_comment_id = ?", (comment_id,)).fetchone()
         assert res[0] == 0
+
+    # 5. Simulate a pull_request_review_comment event (threaded reply)
+    review_comment_payload = {
+        "action": "created",
+        "comment": {
+            "id": 112233,
+            "in_reply_to_id": comment_id,
+            "body": "This makes sense, nice catch!"
+        },
+        "pull_request": {
+            "number": 1
+        },
+        "repository": {
+            "full_name": "test/repo"
+        }
+    }
+    
+    headers = {"x-github-event": "pull_request_review_comment"}
+    response = client.post("/webhook", json=review_comment_payload, headers=headers)
+    assert response.status_code == 200
+    
+    # Verify score is now 1 (positive sentiment from "nice catch")
+    with get_connection() as conn:
+        res = conn.execute("SELECT score FROM ai_comments WHERE github_comment_id = ?", (comment_id,)).fetchone()
+        assert res[0] == 1
 
     print("\nFeedback loop verification SUCCESSFUL!")
 

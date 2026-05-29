@@ -11,7 +11,9 @@ from backend.core.database import (
     get_latest_ai_comment_for_pr, get_all_ai_comments_for_pr,
     update_comment_score, get_connection
 )
-from backend.services.reaction_handler import _detect_sentiment, _find_target_ai_comment
+from backend.services.reaction_handler import (
+    _detect_sentiment, _find_target_ai_comment, handle_review_comment_feedback
+)
 
 def run_tests():
     print("=" * 50)
@@ -96,6 +98,63 @@ def run_tests():
         row = conn.execute("SELECT score FROM ai_comments WHERE github_comment_id = 1001").fetchone()
     status = "PASS" if row and row[0] == 1 else "FAIL"
     print(f"[{status}] Test 8 - E2E: Feedback on main.py updated score to {row[0] if row else 'N/A'}")
+    passed += 1 if status == "PASS" else 0
+    failed += 1 if status == "FAIL" else 0
+
+    # Test 9: handle_review_comment_feedback with direct thread mapping using in_reply_to_id
+    with get_connection() as conn:
+        conn.execute("UPDATE ai_comments SET score = 0")
+    
+    payload_threaded = {
+        "action": "created",
+        "comment": {
+            "id": 2001,
+            "in_reply_to_id": 1001,
+            "body": "lgtm, great work!"
+        },
+        "pull_request": {
+            "number": 5
+        },
+        "repository": {
+            "full_name": "test/repo"
+        }
+    }
+    handle_review_comment_feedback(payload_threaded)
+    
+    with get_connection() as conn:
+        row_ai1 = conn.execute("SELECT score FROM ai_comments WHERE github_comment_id = 1001").fetchone()
+        row_ai2 = conn.execute("SELECT score FROM ai_comments WHERE github_comment_id = 1002").fetchone()
+    
+    status = "PASS" if row_ai1 and row_ai1[0] == 1 and row_ai2 and row_ai2[0] == 0 else "FAIL"
+    print(f"[{status}] Test 9 - Threaded feedback (in_reply_to_id=1001): AI 1001 score={row_ai1[0] if row_ai1 else None}, AI 1002 score={row_ai2[0] if row_ai2 else None}")
+    passed += 1 if status == "PASS" else 0
+    failed += 1 if status == "FAIL" else 0
+
+    # Test 10: handle_review_comment_feedback without in_reply_to_id (heuristic fallback)
+    with get_connection() as conn:
+        conn.execute("UPDATE ai_comments SET score = 0")
+        
+    payload_heuristic = {
+        "action": "created",
+        "comment": {
+            "id": 2002,
+            "body": "this suggestion for utils.py is incorrect and bad suggestion"
+        },
+        "pull_request": {
+            "number": 5
+        },
+        "repository": {
+            "full_name": "test/repo"
+        }
+    }
+    handle_review_comment_feedback(payload_heuristic)
+    
+    with get_connection() as conn:
+        row_ai1 = conn.execute("SELECT score FROM ai_comments WHERE github_comment_id = 1001").fetchone()
+        row_ai2 = conn.execute("SELECT score FROM ai_comments WHERE github_comment_id = 1002").fetchone()
+        
+    status = "PASS" if row_ai1 and row_ai1[0] == 0 and row_ai2 and row_ai2[0] == -1 else "FAIL"
+    print(f"[{status}] Test 10 - Heuristic fallback (file name mention): AI 1001 score={row_ai1[0] if row_ai1 else None}, AI 1002 score={row_ai2[0] if row_ai2 else None}")
     passed += 1 if status == "PASS" else 0
     failed += 1 if status == "FAIL" else 0
 

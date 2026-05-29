@@ -80,6 +80,13 @@ async def github_webhook(request: Request, background_tasks: BackgroundTasks):
         
         return {"status": "accepted", "message": "Comment activity recorded."}
             
+    elif event_type == "pull_request_review_comment":
+        # Phase 4: Handle replies inside review comment threads
+        payload = await request.json()
+        from backend.services.reaction_handler import handle_review_comment_feedback
+        background_tasks.add_task(handle_review_comment_feedback, payload)
+        return {"status": "accepted", "message": "Review comment activity recorded."}
+
     return {"status": "ignored", "message": f"Event '{event_type}' ignored, listening only for target events."}
 
 if __name__ == "__main__":

@@ -54,10 +54,10 @@ def _detect_sentiment(comment_body: str) -> int:
     """
     body_lower = comment_body.lower().strip()
 
-    if any(keyword in body_lower for keyword in POSITIVE_KEYWORDS):
-        return 1
-    elif any(keyword in body_lower for keyword in NEGATIVE_KEYWORDS):
+    if any(keyword in body_lower for keyword in NEGATIVE_KEYWORDS):
         return -1
+    elif any(keyword in body_lower for keyword in POSITIVE_KEYWORDS):
+        return 1
     return 0
 
 
@@ -150,3 +150,66 @@ def handle_comment_feedback(payload: dict):
         update_comment_score(ai_comment_id, delta)
     else:
         logger.info(f"No AI comments found for {repo_full_name} PR #{pr_number}. Feedback ignored.")
+
+
+def handle_review_comment_feedback(payload: dict):
+    """
+    Analyzes a new pull_request_review_comment to determine if it's developer feedback for an AI review.
+    Handles nested threads using `in_reply_to_id` directly, and falls back to heuristics if needed.
+    """
+    action = payload.get("action")
+    if action != "created":
+        return
+
+    comment = payload.get("comment", {})
+    pull_request = payload.get("pull_request", {})
+    repo = payload.get("repository", {})
+
+    comment_body = comment.get("body", "").strip()
+    comment_id = comment.get("id")
+    in_reply_to_id = comment.get("in_reply_to_id")
+    repo_full_name = repo.get("full_name", "")
+    pr_number = pull_request.get("number")
+
+    # Validate required fields
+    if not comment_body or not repo_full_name or not pr_number:
+        logger.debug("Missing required fields in pull_request_review_comment payload. Skipping.")
+        return
+
+    # Don't score our own comments
+    if is_ai_comment(comment_id):
+        logger.debug(f"Comment {comment_id} is from the AI itself. Skipping.")
+        return
+
+    # Detect sentiment from the reply text
+    delta = _detect_sentiment(comment_body)
+    if delta == 0:
+        logger.debug(f"No feedback sentiment detected in comment: '{comment_body[:80]}...'")
+        return
+
+    # Determine which AI comment to map the feedback to
+    target_ai_comment_id = None
+
+    if in_reply_to_id:
+        # Strategy 1: Threaded reply. If the parent comment is our AI comment, map to it directly
+        if is_ai_comment(in_reply_to_id):
+            target_ai_comment_id = in_reply_to_id
+            logger.info(f"Direct thread match found. Mapping feedback to parent AI comment {in_reply_to_id}.")
+
+    if not target_ai_comment_id:
+        # Strategy 2: Fall back to heuristics if not in a thread or parent not found in DB
+        target = _find_target_ai_comment(comment_body, repo_full_name, pr_number)
+        if target:
+            target_ai_comment_id = target["github_comment_id"]
+            logger.info(f"Fallback matched feedback to AI comment {target_ai_comment_id} using heuristics.")
+
+    if target_ai_comment_id:
+        logger.info(
+            f"Feedback mapped: delta={delta:+d} for AI comment {target_ai_comment_id} "
+            f"on {repo_full_name} PR #{pr_number}. "
+            f"Trigger: '{comment_body[:60]}...'"
+        )
+        update_comment_score(target_ai_comment_id, delta)
+    else:
+        logger.info(f"No target AI comment found for {repo_full_name} PR #{pr_number}. Feedback ignored.")
+
